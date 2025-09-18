@@ -1,0 +1,41 @@
+trigger:
+- main
+
+pool:
+  vmImage: omkar-hcl
+
+stages:
+- stage: BuildCustomImage
+  displayName: 'Build Custom Ubuntu Image using Packer + Federation Auth'
+  jobs:
+  - job: PackerBuildJob
+    displayName: 'Run Packer Build'
+
+    steps:
+    - task: Bash@3
+      displayName: 'Install Packer'
+      inputs:
+        targetType: 'inline'
+        script: |
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update && sudo apt-get install -y packer
+
+    - task: AzureCLI@2
+      displayName: 'Azure Login via Service Connection (Federated)'
+      inputs:
+        azureSubscription: 'HCL-infrasc'  # tera service connection name yahan daal
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Logged into Azure successfully via federated credentials"
+
+    - task: Bash@3
+      displayName: 'Run Packer Build'
+      inputs:
+        targetType: 'inline'
+        script: |
+          cd packer
+          packer init .
+          packer build azure-image.pkr.hcl
+
