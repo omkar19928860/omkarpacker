@@ -1,7 +1,7 @@
 trigger:
 - main
 
-pool: omkar-hcl   # <- Windows based self-hosted agent
+pool: omkar-hcl  # Windows based self-hosted agent
 
 stages:
 - stage: BuildCustomImage
@@ -11,36 +11,33 @@ stages:
     displayName: 'Run Packer Build'
 
     steps:
-    # Step 1 - Install Packer
     - task: PowerShell@2
       displayName: 'Install Packer'
       inputs:
         targetType: 'inline'
         script: |
           $packerVersion = "1.11.2"
-          Invoke-WebRequest -Uri "https://releases.hashicorp.com/packer/$packerVersion/packer_${packerVersion}_windows_amd64.zip" -OutFile "packer.zip"
-          Expand-Archive packer.zip -DestinationPath "$Env:ProgramFiles\packer" -Force
-          # Add Packer to PATH for current session
-          $env:Path += ";$Env:ProgramFiles\packer"
-          Write-Host "Packer installed at $Env:ProgramFiles\packer"
+          $installDir = "$(Build.SourcesDirectory)\packer"
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+          Invoke-WebRequest -Uri "https://releases.hashicorp.com/packer/$packerVersion/packer_${packerVersion}_windows_amd64.zip" -OutFile "$installDir\packer.zip"
+          Expand-Archive "$installDir\packer.zip" -DestinationPath $installDir -Force
+          $env:PATH += ";$installDir"
+          Write-Host "##vso[task.setvariable variable=PATH]$env:PATH"
 
-    # Step 2 - Azure Login via Federated Service Connection
     - task: AzureCLI@2
       displayName: 'Azure Login via Service Connection (Federated)'
       inputs:
-        azureSubscription: 'HCL-infrasc'   # <-- your service connection name
+        azureSubscription: 'HCL-infrasc'
         scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
           Write-Host "Logged into Azure successfully via federated credentials"
 
-    # Step 3 - Run Packer Build
     - task: PowerShell@2
       displayName: 'Run Packer Build'
       inputs:
         targetType: 'inline'
         script: |
-          $env:Path += ";$Env:ProgramFiles\packer"
           cd packer
-          packer init .
-          packer build azure-image.pkr.hcl
+          .\packer.exe init .
+          .\packer.exe build azure-image.pkr.hcl
