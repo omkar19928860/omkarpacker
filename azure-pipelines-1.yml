@@ -1,0 +1,51 @@
+trigger:
+- main
+
+pool: omkar-hcl  # Windows self-hosted agent
+
+stages:
+- stage: BuildCustomImage
+  displayName: 'Build Custom Ubuntu Image using Packer'
+  jobs:
+  - job: PackerBuildJob
+    displayName: 'Run Packer Build'
+
+    steps:
+    - checkout: self
+
+    # Install Packer locally
+    - task: PowerShell@2
+      displayName: 'Install Packer'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $packerVersion = "1.11.2"
+          $installDir = "$(Build.SourcesDirectory)\tools"
+          New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+
+          Invoke-WebRequest -Uri "https://releases.hashicorp.com/packer/$packerVersion/packer_${packerVersion}_windows_amd64.zip" -OutFile "$installDir\packer.zip"
+          Expand-Archive -Path "$installDir\packer.zip" -DestinationPath $installDir -Force
+
+          Write-Host "##vso[task.setvariable variable=PATH]$installDir;$env:PATH"
+
+    # Azure Login via Federated service connection
+    - task: AzureCLI@2
+      displayName: 'Azure Login via Service Connection'
+      inputs:
+        azureSubscription: '<Your-Service-Connection-Name>'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          Write-Host "Azure login successful!"
+
+    # Run packer build on the template inside /packer folder
+    - task: PowerShell@2
+      displayName: 'Run Packer Build'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $env:PATH = "$(Build.SourcesDirectory)\tools;" + $env:PATH
+          cd "$(Build.SourcesDirectory)\packer"
+          packer init .
+          packer validate .
+          packer build .
