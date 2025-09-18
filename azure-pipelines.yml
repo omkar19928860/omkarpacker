@@ -38,6 +38,6 @@ stages:
       inputs:
         targetType: 'inline'
         script: |
-          cd packer
-          .\packer.exe init .
-          .\packer.exe build azure-image.pkr.hcl
+           cd "$(Build.SourcesDirectory)\packer"
+           packer init .
+           packer build azure-image.pkr.hcl
